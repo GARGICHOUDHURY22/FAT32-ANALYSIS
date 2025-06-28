@@ -1,0 +1,166 @@
+FAT32 Analysis – TryHackMe Room Walkthrough
+
+This repository contains a complete forensic walkthrough of the [FAT32 Analysis](https://tryhackme.com/room/fat32analysis) room on TryHackMe. The goal is to gain hands-on experience with FAT32 filesystem internals, manual data recovery, anti-forensics detection, and practical investigation skills aligned with the MITRE ATT&CK framework.
+
+---
+
+Overview
+
+This room is focused on:
+- Understanding the structure of the FAT32 filesystem
+- Analyzing disk images for hidden or deleted files
+- Performing manual file recovery using hex editors
+- Investigating timestomping and indicator removal techniques
+- Mapping forensic findings to MITRE ATT&CK tactics
+
+This README documents the methodology, tools, artifacts, screenshots, and lessons learned throughout the challenge.
+
+---
+
+Skills Developed
+
+- FAT32 disk structure analysis (Boot Sector, FAT Table, Data Area)
+- Hex-level parsing and interpretation of directory entries
+- Recovery of deleted files using cluster addresses
+- Timeline analysis for detecting timestomping
+- Decoding and analysis of obfuscated payloads (PowerShell scripts)
+- Mapping observed activity to MITRE ATT&CK techniques
+
+---
+
+Challenges Faced & How I Overcame Them
+
+1. Locating Deleted Files
+Challenge: FAT32 marks deleted files by overwriting the first byte of the directory entry with `0xE5`, making it hard to identify true file names or content without extra tools.
+
+Solution: Parsed Short File Name (SFN) and Long File Name (LFN) entries using hex editors (HxD & 010 Editor), tracked cluster chains, and manually recovered file contents.
+
+---
+
+2. Rebuilding Obfuscated Payloads
+Challenge: A deleted PowerShell script was encoded in Base64 within the recovered content, designed to bypass detection.
+
+Solution: Recovered cluster data containing the script, extracted the Base64 string manually, and decoded it using CyberChef to obtain readable PowerShell code.
+
+---
+
+3. Detecting Timestomped Files
+Challenge: Timestamps were manipulated to hide the true creation/modification times.
+
+Solution: Compared hex timestamps (in FAT date/time format) with Autopsy’s timeline view to find inconsistencies, confirming the use of timestomping (T1070.006).
+
+---
+
+Tools Used
+
+
+| Tool                  | Purpose                                                                 |
+|-----------------------|-------------------------------------------------------------------------|
+| HxD / 010 Editor      | Hex-level analysis of FAT32 structures, directory entries, and clusters |
+| FTK Imager            | Mounting and previewing forensic disk images without altering evidence  |
+| Autopsy            | Automated forensic analysis, timeline creation, and file metadata recovery |
+| CyberChef             | Decoding Base64, deobfuscating scripts, and extracting hidden payloads  |
+| Timeline Explorer     | Correlating and visualizing timestamped forensic events                 |
+| MITRE ATT&CK         | Mapping observed behaviors to adversarial tactics and techniques         |
+
+
+---
+Problems Faced & How I Overcame Them
+
+While completing the TryHackMe FAT32 Analysis room, several technical and investigative challenges were encountered. Below is a breakdown of each problem, what made it difficult, and how I solved it.
+
+
+1. Interpreting the FAT32 Directory Entries
+Problem:
+Understanding how FAT32 stores directory entries—especially deleted files—was initially confusing due to the 32-byte entry structure and use of special markers like `0xE5` for deletion.
+
+Solution:  
+I reviewed the FAT32 specification and practiced reading directory entries byte by byte in HxD and 010 Editor. I cross-verified my manual parsing with what Autopsy revealed, gradually learning to spot deleted entries and hidden files using SFN (Short File Name) and LFN (Long File Name) records.
+
+2. Tracking Down Cluster Chains Manually  
+Problem:  
+FAT32 stores file data across clusters, and deleted files don’t always have easily traceable cluster chains due to overwritten or missing FAT entries.
+
+Solution:  
+Using the start cluster number from the deleted directory entry, I followed the FAT table manually to locate all associated clusters. In cases where chains were broken or missing, I used known signatures (like `MZ` or PowerShell headers) to identify potential file fragments.
+
+3. Identifying and Recovering Encoded Payloads  
+Problem:  
+One deleted PowerShell script was base64-encoded, and its context was unclear due to obfuscation and its deleted status.
+
+Solution: 
+After recovering the file from the relevant clusters, I manually extracted the encoded string from the hex dump, pasted it into CyberChef, and decoded it. This revealed a persistence script that would have otherwise gone unnoticed without deeper analysis.
+
+4. Timestomp Detection  
+Problem:  
+It was difficult to determine whether timestamps were legitimate or modified using timestomping techniques.
+
+Solution:  
+I learned how FAT32 encodes timestamps and compared those in the hex view with Autopsy’s timeline. Discrepancies between actual file creation/modification dates and expected behavioral patterns (e.g., a malicious script with an old timestamp) confirmed timestomping activity (T1070.006).
+
+5. Distinguishing Legitimate Deletion from Anti-Forensic Tactics  
+Problem:  
+Not every deleted file is necessarily suspicious. I needed to differentiate between normal OS activity and adversarial deletion (T1070.004).
+
+Solution: 
+I evaluated context—looking at surrounding files, execution timestamps, and filename anomalies. Deleted files with embedded scripts, PowerShell payloads, or encoded content were flagged as malicious, especially if they were hidden using filesystem tricks.
+
+6. Analyzing Images and Cluster Fragments  
+Problem:  
+Manually aligning image fragments or partial clusters into a usable file required patience and byte-level accuracy.
+
+Solution: 
+I used image viewers and forensic tools to preview header/footer magic numbers (like `FFD8` for JPEG), then reconstructed files using hex editors by copying raw cluster data into new files.
+
+7. Tool Limitations and Workarounds  
+Problem:  
+Some tools (like Autopsy) didn’t show cluster chains in detail, and others (like FTK Imager) didn’t decode timestamps natively.
+
+Solution:  
+I combined tools — using Autopsy for overview, HxD for low-level byte analysis, and external converters (e.g., FAT timestamp calculators) for verification. This hybrid approach allowed me to overcome tool limitations.
+
+8. Mapping to MITRE ATT&CK with Confidence  
+Problem:  
+Connecting observed actions (e.g., file deletion, timestamp anomalies) with the correct MITRE ATT&CK techniques required precision and confidence.
+
+Solution:  
+I referred to official ATT&CK documentation to match tactics (like Defense Evasion) with observed forensic evidence. For instance, finding timestamp anomalies led me to T1070.006 (Timestomp), while encoded deleted scripts matched T1070.004 (File Deletion).
+
+Summary
+
+These challenges pushed me to:
+- Deepen my understanding of FAT32 internals
+- Improve my hex analysis skills
+- Think like both a forensic analyst and an attacker
+- Validate evidence rigorously before drawing conclusions
+
+Each problem became an opportunity to improve my technical workflow and forensic mindset.
+---
+
+MITRE ATT&CK Techniques Observed
+
+Technique ID	        Technique Name	             Details
+T1564.001    	Hidden Files and Directories	  Files hidden using 0xE5 and directory entry manipulation
+T1070.006   	Indicator Removal: Timestomp   	Creation/modification timestamps falsified to avoid detection
+T1070.004   	File Deletion	                  Scripts deleted but clusters not overwritten
+T1070.009	    Clear Persistence	              Deleted persistence mechanisms embedded in scripts
+
+---
+Prerequisites
+
+- To fully benefit from this walkthrough, the following knowledge is recommended:
+
+- Basic Linux command-line usage
+
+- Understanding of how filesystems (especially FAT32) function
+
+- Familiarity with digital forensics tools (FTK Imager, Autopsy, HxD)
+
+- Knowledge of hexadecimal format and timestamp encoding
+
+- Introductory knowledge of MITRE ATT&CK
+
+Conclusion
+The FAT32 Analysis room from TryHackMe offered a challenging and highly instructive experience. It reinforced my understanding of disk-level forensic techniques and exposed the ways threat actors hide evidence through deletion, timestomping, and encoding. The hands-on practice with real disk images improved my ability to conduct manual analysis and correlate findings to industry-recognized adversarial techniques.
+
+
